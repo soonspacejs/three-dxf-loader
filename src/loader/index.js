@@ -7,7 +7,7 @@ import {BufferGeometry, Color, Float32BufferAttribute, Vector3} from 'three';
 import {Text} from 'troika-three-text'
 import {parseDxfMTextContent} from '@dxfom/mtext';
 import {Base64} from "js-base64";
-import DxfParser from "dxf-parser";
+import DxfParser from "./parser/index.js";
 import bSpline from './bspline';
 
 function decodeDataUri(uri) {
@@ -361,8 +361,11 @@ class DXFLoader extends THREE.Loader {
             const color = getColor(entity, data);
 
             const xrad = Math.sqrt(Math.pow(entity.majorAxisEndPoint.x, 2) + Math.pow(entity.majorAxisEndPoint.y, 2));
-            const yrad = xrad * entity.axisRatio;
+            let yrad = xrad * entity.axisRatio;
             const rotation = Math.atan2(entity.majorAxisEndPoint.y, entity.majorAxisEndPoint.x);
+
+            // 解决镜像问题
+            yrad *= Math.sign(entity.extrusionDirectionZ ?? 1)
 
             const curve = new THREE.EllipseCurve(
                 entity.center.x, entity.center.y,
@@ -631,17 +634,26 @@ class DXFLoader extends THREE.Loader {
 
         function drawArc(entity, data) {
             let startAngle, endAngle;
+            let xrad, yrad;
+            let {x,y,z} = entity.center;
+
+            xrad = yrad = entity.radius
+
             if (entity.type === 'CIRCLE') {
                 startAngle = entity.startAngle || 0;
                 endAngle = startAngle + 2 * Math.PI;
             } else {
                 startAngle = entity.startAngle;
                 endAngle = entity.endAngle;
+
+                const sign = Math.sign(entity.extrusionDirectionZ ?? 1)
+                x *= sign
+                xrad *= sign
             }
 
-            let curve = new THREE.ArcCurve(
+            let curve = new THREE.EllipseCurve(
                 0, 0,
-                entity.radius,
+                xrad, yrad,
                 startAngle,
                 endAngle);
 
@@ -651,10 +663,8 @@ class DXFLoader extends THREE.Loader {
             const material = cachedLineBasicMaterial(getColor(entity, data));
 
             const arc = new THREE.Line(geometry, material);
-            arc.name = 'arc'
-            arc.position.x = entity.center.x;
-            arc.position.y = entity.center.y;
-            arc.position.z = entity.center.z;
+            arc.name = 'arc';
+            arc.position.set(x, y, z);
 
             return arc;
         }
