@@ -4,7 +4,6 @@
 
 import * as THREE from 'three';
 import {BufferGeometry, Color, Float32BufferAttribute, Vector3} from 'three';
-import {TextGeometry} from 'three/examples/jsm/geometries/TextGeometry.js';
 import {Text} from 'troika-three-text'
 import {parseDxfMTextContent} from '@dxfom/mtext';
 import {Base64} from "js-base64";
@@ -173,11 +172,63 @@ class DXFLoader extends THREE.Loader {
     }
 
     parse(text) {
+        let start = performance.now()
         const parser = new DxfParser();
         let dxf = parser.parseSync(text);
+        console.log('解析dxf完成', performance.now() - start)
         return this.loadEntities(dxf, this.font, this.enableLayer);
     }
 
+    loadAsObject(url, onLoad, onProgress, onError) {
+        let scope = this;
+        let loader;
+        try {
+            loader = new THREE.XHRLoader(scope.manager);
+        } catch {
+            loader = new THREE.FileLoader(scope.manager);
+        }
+
+        loader.setPath(scope.path);
+        // Test if it is a data-uri
+        const text = decodeDataUri(url);
+        if (text) {
+            scope.loadStringAsObject(text, onLoad, onError);
+        } else {
+            loader.load(
+                url,
+                (text) => {
+                    scope.loadStringAsObject(text, onLoad, onError);
+                },
+                onProgress,
+                onError
+            );
+        }
+    }
+
+    loadAsObjectAsync(url, onProgress) {
+        const scope = this;
+        return new Promise(function (resolve, reject) {
+            scope.loadAsObject(url, resolve, onProgress, reject);
+        });
+    }
+
+    loadStringAsObject(text, onLoad, onError) {
+        let scope = this
+        try {
+            onLoad(scope.parseAsObject(text))
+        } catch (error) {
+            if (onError) {
+                onError(error)
+            } else {
+                console.error(error)
+            }
+        }
+    }
+
+    parseAsObject(text) {
+        const parser = new DxfParser();
+        return parser.parseSync(text);
+    }
 
     /**
      * @param {Object} data - the dxf object
@@ -195,8 +246,13 @@ class DXFLoader extends THREE.Loader {
         // Create scene from dxf object (data)
         let i, entity, obj;
 
+        let start = performance.now()
+
         for (i = 0; i < data.entities.length; i++) {
+            const start2 = performance.now()
+
             entity = data.entities[i];
+
             obj = drawEntity(entity, data);
 
             if (obj) {
@@ -216,6 +272,10 @@ class DXFLoader extends THREE.Loader {
             obj = null;
         }
 
+        console.log('加载dxf实例完成', performance.now() - start)
+
+        start = performance.now()
+
         if (enableLayer) {
             for (let mesh of Object.values(layers)) {
                 mergeEntities(mesh)
@@ -234,6 +294,8 @@ class DXFLoader extends THREE.Loader {
                 entities.push(child)
             }
         }
+
+        console.log('合并dxf实例完成', performance.now() - start)
 
         return {
             entities: enableLayer ? Object.values(layers) : entities,
@@ -255,8 +317,8 @@ class DXFLoader extends THREE.Loader {
                 mesh = drawText(entity, data);
             } else if (entity.type === 'SOLID') {
                 mesh = drawSolid(entity, data);
-            } else if (entity.type === 'POINT') {
-                mesh = drawPoint(entity, data);
+                // } else if (entity.type === 'POINT') {
+                //     mesh = drawPoint(entity, data);
             } else if (entity.type === 'INSERT') {
                 mesh = drawBlock(entity, data);
             } else if (entity.type === 'SPLINE') {
@@ -452,7 +514,6 @@ class DXFLoader extends THREE.Loader {
                 default:
                     return undefined;
             }
-            ;
 
             textEnt.sync(() => {
                 if (textEnt.textAlign !== 'left') {
@@ -474,6 +535,7 @@ class DXFLoader extends THREE.Loader {
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
             const material = cachedLineBasicMaterial(color, 1)
             const splineObject = new THREE.Line(geometry, material);
+            splineObject.name = 'spline'
 
             return splineObject;
         }
@@ -563,6 +625,7 @@ class DXFLoader extends THREE.Loader {
             const geometry = new BufferGeometry().setFromPoints(points);
 
             line = new THREE.Line(geometry, material);
+            line.name = 'line'
             return line;
         }
 
@@ -588,6 +651,7 @@ class DXFLoader extends THREE.Loader {
             const material = cachedLineBasicMaterial(getColor(entity, data));
 
             const arc = new THREE.Line(geometry, material);
+            arc.name = 'arc'
             arc.position.x = entity.center.x;
             arc.position.y = entity.center.y;
             arc.position.z = entity.center.z;
@@ -628,7 +692,9 @@ class DXFLoader extends THREE.Loader {
             material = cachedMeshBasicMaterial(getColor(entity, data));
             geometry.setFromPoints(verts);
 
-            return new THREE.Mesh(geometry, material);
+            const solid = new THREE.Mesh(geometry, material);
+            solid.name = 'solid'
+            return solid
         }
 
         function drawText(entity, data) {
@@ -637,16 +703,20 @@ class DXFLoader extends THREE.Loader {
             if (!font)
                 return console.warn('Text is not supported without a Three.js font loaded with THREE.FontLoader! Load a font of your choice and pass this into the constructor. See the sample for this repository or Three.js examples at http://threejs.org/examples/?q=text#webgl_geometry_text for more details.');
 
-            geometry = new TextGeometry(entity.text, {font: font, height: 0, size: entity.textHeight || 12});
+            const shapes = font.generateShapes(entity.text, entity.textHeight || 12)
+
+            // geometry = new TextGeometry(entity.text, {font: font, height: 0, size: entity.textHeight || 12});
+            geometry = new THREE.ShapeGeometry(shapes)
 
             if (entity.rotation) {
                 let zRotation = entity.rotation * Math.PI / 180;
                 geometry.rotateZ(zRotation);
             }
 
-            material = cachedMeshBasicMaterial(getColor(entity, data));
+            material = cachedTextMaterial(getColor(entity, data));
 
             text = new THREE.Mesh(geometry, material);
+            text.name = `text-${entity.text}`
             text.position.x = entity.startPoint.x;
             text.position.y = entity.startPoint.y;
             text.position.z = entity.startPoint.z;
@@ -665,6 +735,7 @@ class DXFLoader extends THREE.Loader {
 
             material = cachedPointsMaterial(new Color(color), 0.1);
             point = new THREE.Points(geometry, material);
+            point.name = 'point'
             return point
         }
 
@@ -895,6 +966,19 @@ class DXFLoader extends THREE.Loader {
 
         /**
          * @param color {number}
+         */
+        function cachedTextMaterial(color) {
+            const materialKey = `TextMaterial&color=${color}`
+            return _materialCache.computeIfAbsent(materialKey, k => {
+                return new THREE.MeshBasicMaterial({
+                    color: color,
+                    depthWrite: DEPTH_WRITE,
+                })
+            })
+        }
+
+        /**
+         * @param color {number}
          * @param size {number}
          */
         function cachedPointsMaterial(color, size) {
@@ -909,6 +993,8 @@ class DXFLoader extends THREE.Loader {
         }
 
         function mergeEntities(obj, debug = false) {
+            return;
+
             if ((obj?.children?.length ?? 0) < 2) {
                 return
             }
