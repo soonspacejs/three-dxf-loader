@@ -1,7 +1,7 @@
 {
   "name": "three-dxf-loader",
-  "version": "3.4.148",
-  "description": "Cross platform DXF loader for three.js. Out of the box usable with react-three-fibre.",
+  "version": "3.6.160",
+  "description": "Cross platform DXF loader for three.js. Out of the box usable with react-three-fiber.",
   "main": "dist/three-dxf-loader.js",
   "module": "src/Loader.js",
   "scripts": {
@@ -9,7 +9,9 @@
     "build": "webpack -c webpack.prod.js",
     "prepublishOnly": "npm run build",
     "start": "npm install && npm run build && cd sample && npm install && npm run start",
-    "start-dev": "npm install && npm run build-dev && cd sample && npm install && npm run start"
+    "start-dev": "npm install && npm run build-dev && cd sample && npm install && npm run start",
+    "lint": "eslint src --ext js --report-unused-disable-directives --max-warnings 0",
+    "prettier": "prettier src/**/*.js --write && prettier sample/*.js --write"
   },
   "exports": {
     ".": {
@@ -34,13 +36,16 @@
     "dist/*"
   ],
   "devDependencies": {
+    "eslint": "^8.56.0",
+    "eslint-plugin-prettier": "^5.1.3",
     "html-webpack-plugin": "^5.5.0",
+    "prettier": "^3.1.1",
     "webpack": "^5.52.1",
     "webpack-cli": "^4.8.0",
     "webpack-merge": "^5.8.0"
   },
   "peerDependencies": {
-    "three": "0.148.0"
+    "three": "0.160.0"
   },
   "keywords": [
     "dxf",
@@ -48,12 +53,17 @@
     "viewer",
     "threejs",
     "react-three-fiber",
-    "r3f"
+    "r3f",
+    "three",
+    "loader",
+    "3d",
+    "2d",
+    "drawings"
   ],
   "dependencies": {
     "@dxfom/mtext": "^0.3.2",
-    "dxf-parser": "^1.1.2",
     "js-base64": "^3.7.3",
+    "loglevel": "^1.8.1",
     "troika-three-text": "^0.48.0"
   }
 }
