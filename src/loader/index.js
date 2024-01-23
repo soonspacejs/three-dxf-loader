@@ -176,7 +176,7 @@ class DXFLoader extends THREE.Loader {
     const start = performance.now()
     const parser = new DxfParser()
     const dxf = parser.parseSync(text)
-    console.log('解析dxf完成', performance.now() - start)
+    // console.log('解析dxf完成', performance.now() - start)
     return this.loadEntities(dxf, this.font, this.enableLayer)
   }
 
@@ -1118,7 +1118,7 @@ class DXFLoader extends THREE.Loader {
     delete data.faceVertices
     delete data.faceColors
 
-    console.log('加载dxf实例完成', performance.now() - start)
+    // console.log('加载dxf实例完成', performance.now() - start)
     start = performance.now()
 
     if (enableLayer) {
@@ -1140,7 +1140,7 @@ class DXFLoader extends THREE.Loader {
       }
     }
 
-    console.log('合并dxf实例完成', performance.now() - start)
+    // console.log('合并dxf实例完成', performance.now() - start)
 
     return {
       entities: enableLayer ? Object.values(layers) : entities,
