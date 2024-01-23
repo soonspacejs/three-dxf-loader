@@ -1,13 +1,10 @@
-/**
- * base on 3.6.160
- */
-
 import * as THREE from 'three'
 import { BufferGeometry, Color, Float32BufferAttribute, Vector3 } from 'three'
+import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js'
 import { Text } from 'troika-three-text'
 import { parseDxfMTextContent } from '@dxfom/mtext'
 import { Base64 } from 'js-base64'
-import DxfParser from './parser/index.js'
+import DxfParser from 'dxf-parser'
 import bSpline from './bspline'
 
 function decodeDataUri(uri) {
@@ -28,19 +25,8 @@ function decodeDataUri(uri) {
 const textControlCharactersRegex = /\\[AXQWOoLIpfH].*;/g
 const curlyBraces = /\\[{}]/g
 
-const USERDATA_ENTITY_TYPE = 'EntityType'
-const USERDATA_ENTITY_LAYER = 'EntityLayer'
-const USERDATA_ENTITY_OWNER_HANDLE = 'EntityOwnerHandle'
-const USERDATA_ENTITY_HANDLE = 'EntityHandle'
-const USERDATA_REVIT_ID = "RevitId"
-
-const USERDATA_BIND_TYPE = "BindType"
-const USERDATA_BIND_KEY = "BindKey"
-
-const DEPTH_WRITE = false
-
 // Three.js extension functions. Webpack doesn't seem to like it if we modify the THREE object directly.
-const THREEx = {Math: {}}
+var THREEx = { Math: {} }
 /**
  * Returns the angle in radians of the vector (p1,p2). In other words, imagine
  * putting the base of the vector at coordinates (0,0) and finding the angle
@@ -50,8 +36,8 @@ const THREEx = {Math: {}}
  * @return {Number} the angle
  */
 THREEx.Math.angle2 = function (p1, p2) {
-  const v1 = new THREE.Vector2(p1.x, p1.y)
-  const v2 = new THREE.Vector2(p2.x, p2.y)
+  var v1 = new THREE.Vector2(p1.x, p1.y)
+  var v2 = new THREE.Vector2(p2.x, p2.y)
   v2.sub(v1) // sets v2 to be our chord
   v2.normalize()
   if (v2.y < 0) return -Math.acos(v2.x)
@@ -59,7 +45,7 @@ THREEx.Math.angle2 = function (p1, p2) {
 }
 
 THREEx.Math.polar = function (point, distance, angle) {
-  const result = {}
+  var result = {}
   result.x = point.x + distance * Math.cos(angle)
   result.y = point.y + distance * Math.sin(angle)
   return result
@@ -73,9 +59,9 @@ THREEx.Math.polar = function (point, distance, angle) {
  * @param segments - number of segments between the two given points
  */
 function getBulgeCurvePoints(startPoint, endPoint, bulge, segments) {
-  let vertex, i, center, p0, p1, angle, radius, startAngle, thetaAngle
+  var vertex, i, center, p0, p1, angle, radius, startAngle, thetaAngle
 
-  const obj = {}
+  var obj = {}
   obj.startPoint = p0 = startPoint
     ? new THREE.Vector2(startPoint.x, startPoint.y)
     : new THREE.Vector2(0, 0)
@@ -94,7 +80,7 @@ function getBulgeCurvePoints(startPoint, endPoint, bulge, segments) {
   startAngle = THREEx.Math.angle2(center, p0)
   thetaAngle = angle / segments
 
-  const vertices = []
+  var vertices = []
 
   vertices.push(new THREE.Vector3(p0.x, p0.y, 0))
 
@@ -133,8 +119,8 @@ class DXFLoader extends THREE.Loader {
   }
 
   load(url, onLoad, onProgress, onError) {
-    const scope = this
-    let loader
+    var scope = this
+    var loader
     try {
       loader = new THREE.XHRLoader(scope.manager)
     } catch {
@@ -159,7 +145,7 @@ class DXFLoader extends THREE.Loader {
   }
 
   loadString(text, onLoad, onError) {
-    const scope = this
+    var scope = this
     try {
       onLoad(scope.parse(text))
     } catch (error) {
@@ -173,62 +159,9 @@ class DXFLoader extends THREE.Loader {
   }
 
   parse(text) {
-    const start = performance.now()
     const parser = new DxfParser()
-    const dxf = parser.parseSync(text)
-    console.log('解析dxf完成', performance.now() - start)
+    var dxf = parser.parseSync(text)
     return this.loadEntities(dxf, this.font, this.enableLayer)
-  }
-
-  loadAsObject(url, onLoad, onProgress, onError) {
-    const scope = this
-    let loader
-    try {
-      loader = new THREE.XHRLoader(scope.manager)
-    } catch {
-      loader = new THREE.FileLoader(scope.manager)
-    }
-
-    loader.setPath(scope.path)
-    // Test if it is a data-uri
-    const text = decodeDataUri(url)
-    if (text) {
-      scope.loadStringAsObject(text, onLoad, onError)
-    } else {
-      loader.load(
-        url,
-        (text) => {
-          scope.loadStringAsObject(text, onLoad, onError)
-        },
-        onProgress,
-        onError
-      );
-    }
-  }
-
-  loadAsObjectAsync(url, onProgress) {
-    const scope = this;
-    return new Promise(function (resolve, reject) {
-      scope.loadAsObject(url, resolve, onProgress, reject)
-    })
-  }
-
-  loadStringAsObject(text, onLoad, onError) {
-    const scope = this
-    try {
-      onLoad(scope.parseAsObject(text))
-    } catch (error) {
-      if (onError) {
-        onError(error)
-      } else {
-        console.error(error)
-      }
-    }
-  }
-
-  parseAsObject(text) {
-    const parser = new DxfParser()
-    return parser.parseSync(text)
   }
 
   /**
@@ -237,14 +170,12 @@ class DXFLoader extends THREE.Loader {
    * @constructor
    */
   loadEntities(data, font, enableLayer) {
-    const _materialCache = new Cache()
-
     /* Entity Type
-            'POINT' | '3DFACE' | 'ARC' | 'ATTDEF' | 'CIRCLE' | 'DIMENSION' | 'MULTILEADER' | 'ELLIPSE' | 'INSERT' | 'LINE' |
+            'POINT' | '3DFACE' | 'ARC' | 'ATTDEF' | 'CIRCLE' | 'DIMENSION' | 'MULTILEADER' | 'ELLIPSE' | 'INSERT' | 'LINE' | 
             'LWPOLYLINE' | 'MTEXT' | 'POLYLINE' | 'SOLID' | 'SPLINE' | 'TEXT' | 'VERTEX'
         */
     function drawEntity(entity, data) {
-      let mesh
+      var mesh
       if (entity.type === 'CIRCLE' || entity.type === 'ARC') {
         mesh = drawArc(entity, data)
       } else if (
@@ -257,8 +188,8 @@ class DXFLoader extends THREE.Loader {
         mesh = drawText(entity, data)
       } else if (entity.type === 'SOLID') {
         mesh = drawSolid(entity, data)
-        // } else if (entity.type === 'POINT') {
-        //     mesh = drawPoint(entity, data)
+      } else if (entity.type === 'POINT') {
+        mesh = drawPoint(entity, data)
       } else if (entity.type === 'INSERT') {
         mesh = drawBlock(entity, data)
       } else if (entity.type === 'SPLINE') {
@@ -268,7 +199,7 @@ class DXFLoader extends THREE.Loader {
       } else if (entity.type === 'ELLIPSE') {
         mesh = drawEllipse(entity, data)
       } else if (entity.type === 'DIMENSION') {
-        const dimTypeEnum = entity.dimensionType & 7
+        var dimTypeEnum = entity.dimensionType & 7
         if (dimTypeEnum === 0) {
           mesh = drawDimension(entity, data)
         } else {
@@ -279,39 +210,19 @@ class DXFLoader extends THREE.Loader {
       } else {
         console.warn('Unsupported Entity Type: ' + entity.type)
       }
-
-      if (mesh) {
-        if (!mesh.userData[USERDATA_ENTITY_TYPE]) {
-          mesh.userData[USERDATA_ENTITY_TYPE] = entity.type
-        }
-        mesh.userData[USERDATA_ENTITY_LAYER] = entity.layer
-        mesh.userData[USERDATA_ENTITY_HANDLE] = entity.handle
-        mesh.userData[USERDATA_ENTITY_OWNER_HANDLE] = entity.ownerHandle
-
-        if (mesh.userData[USERDATA_REVIT_ID]) {
-          mesh.userData[USERDATA_BIND_TYPE] = "REVIT"
-          mesh.userData[USERDATA_BIND_KEY] = mesh.userData[USERDATA_REVIT_ID]
-        } else {
-          mesh.userData[USERDATA_BIND_TYPE] = "HANDLE"
-          mesh.userData[USERDATA_BIND_KEY] = entity.handle
-        }
-      }
       return mesh
     }
 
     function drawEllipse(entity, data) {
-      const color = getColor(entity, data)
+      var color = getColor(entity, data)
 
-      let xrad = Math.sqrt(
+      var xrad = Math.sqrt(
         Math.pow(entity.majorAxisEndPoint.x, 2) + Math.pow(entity.majorAxisEndPoint.y, 2)
       )
-      let yrad = xrad * entity.axisRatio
-      const rotation = Math.atan2(entity.majorAxisEndPoint.y, entity.majorAxisEndPoint.x)
+      var yrad = xrad * entity.axisRatio
+      var rotation = Math.atan2(entity.majorAxisEndPoint.y, entity.majorAxisEndPoint.x)
 
-      // 解决镜像问题
-      yrad *= Math.sign(entity.extrusionDirectionZ ?? 1)
-
-      const curve = new THREE.EllipseCurve(
+      var curve = new THREE.EllipseCurve(
         entity.center.x,
         entity.center.y,
         xrad,
@@ -322,32 +233,31 @@ class DXFLoader extends THREE.Loader {
         rotation
       )
 
-      const points = curve.getPoints(50)
-      const geometry = new THREE.BufferGeometry().setFromPoints(points)
-      // const material = new THREE.LineBasicMaterial({ linewidth: 1, color: color })
-      const material = cachedLineBasicMaterial(color, 1)
+      var points = curve.getPoints(50)
+      var geometry = new THREE.BufferGeometry().setFromPoints(points)
+      var material = new THREE.LineBasicMaterial({ linewidth: 1, color: color })
 
       // Create the final object to add to the scene
-      const ellipse = new THREE.Line(geometry, material)
+      var ellipse = new THREE.Line(geometry, material)
       return ellipse
     }
 
     function drawMtext(entity, data) {
-      const color = getColor(entity, data)
+      var color = getColor(entity, data)
 
       if (!font) {
         return console.warn('font parameter not set. Ignoring text entity.')
       }
 
-      const textAndControlChars = parseDxfMTextContent(entity.text)
+      var textAndControlChars = parseDxfMTextContent(entity.text)
 
       //Note: We currently only support a single format applied to all the mtext text
-      const content = mtextContentAndFormattingToTextAndStyle(textAndControlChars, entity, color)
+      var content = mtextContentAndFormattingToTextAndStyle(textAndControlChars, entity, color)
 
-      const txt = createTextForScene(content.text, content.style, entity, color)
+      var txt = createTextForScene(content.text, content.style, entity, color)
       if (!txt) return null
 
-      const group = new THREE.Object3D()
+      var group = new THREE.Object3D()
       group.add(txt)
       return group
     }
@@ -358,7 +268,7 @@ class DXFLoader extends THREE.Loader {
         textHeight: entity.height,
       }
 
-      const text = []
+      var text = []
       for (let item of textAndControlChars) {
         if (typeof item === 'string') {
           if (item.startsWith('pxq') && item.endsWith(';')) {
@@ -370,7 +280,7 @@ class DXFLoader extends THREE.Loader {
             text.push(item)
           }
         } else if (Array.isArray(item)) {
-          const nestedFormat = mtextContentAndFormattingToTextAndStyle(item, entity, color)
+          var nestedFormat = mtextContentAndFormattingToTextAndStyle(item, entity, color)
           text.push(nestedFormat.text)
         } else if (typeof item === 'object') {
           if (item['S'] && item['S'].length === 3) {
@@ -404,7 +314,7 @@ class DXFLoader extends THREE.Loader {
         textEnt.rotation.z = (entity.rotation * Math.PI) / 180
       }
       if (entity.directionVector) {
-        const dv = entity.directionVector
+        var dv = entity.directionVector
         textEnt.rotation.z = new THREE.Vector3(1, 0, 0).angleTo(new THREE.Vector3(dv.x, dv.y, dv.z))
       }
       switch (entity.attachmentPoint) {
@@ -463,7 +373,7 @@ class DXFLoader extends THREE.Loader {
       textEnt.sync(() => {
         if (textEnt.textAlign !== 'left') {
           textEnt.geometry.computeBoundingBox()
-          const textWidth = textEnt.geometry.boundingBox.max.x - textEnt.geometry.boundingBox.min.x
+          var textWidth = textEnt.geometry.boundingBox.max.x - textEnt.geometry.boundingBox.min.x
           if (textEnt.textAlign === 'center') textEnt.position.x += (entity.width - textWidth) / 2
           if (textEnt.textAlign === 'right') textEnt.position.x += entity.width - textWidth
         }
@@ -473,20 +383,18 @@ class DXFLoader extends THREE.Loader {
     }
 
     function drawSpline(entity, data) {
-      const color = getColor(entity, data)
+      var color = getColor(entity, data)
 
-      const points = getBSplinePolyline(
+      var points = getBSplinePolyline(
         entity.controlPoints,
         entity.degreeOfSplineCurve,
         entity.knotValues,
         100
       )
 
-      const geometry = new THREE.BufferGeometry().setFromPoints(points)
-      // const material = new THREE.LineBasicMaterial({ linewidth: 1, color: color })
-      const material = cachedLineBasicMaterial(color, 1)
-      const splineObject = new THREE.Line(geometry, material)
-      splineObject.name = 'spline'
+      var geometry = new THREE.BufferGeometry().setFromPoints(points)
+      var material = new THREE.LineBasicMaterial({ linewidth: 1, color: color })
+      var splineObject = new THREE.Line(geometry, material)
 
       return splineObject
     }
@@ -543,7 +451,7 @@ class DXFLoader extends THREE.Loader {
     function drawLine(entity, data) {
       let points = []
       let color = getColor(entity, data)
-      let material, lineType, vertex, startPoint, endPoint, bulgeGeometry, bulge, i, line
+      var material, lineType, vertex, startPoint, endPoint, bulgeGeometry, bulge, i, line
 
       if (!entity.vertices) return console.warn('entity missing vertices.')
 
@@ -570,69 +478,53 @@ class DXFLoader extends THREE.Loader {
       }
 
       if (lineType && lineType.pattern && lineType.pattern.length !== 0) {
-        // material = new THREE.LineDashedMaterial({ color: color, gapSize: 4, dashSize: 4 })
-        material = cachedLineDashedMaterial(color, 4, 4)
+        material = new THREE.LineDashedMaterial({ color: color, gapSize: 4, dashSize: 4 })
       } else {
-        // material = new THREE.LineBasicMaterial({ linewidth: 1, color: color })
-        material = cachedLineBasicMaterial(color, 1)
+        material = new THREE.LineBasicMaterial({ linewidth: 1, color: color })
       }
 
-      const geometry = new BufferGeometry().setFromPoints(points)
+      var geometry = new BufferGeometry().setFromPoints(points)
 
       line = new THREE.Line(geometry, material)
-      line.name = 'line'
       return line
     }
 
     function drawArc(entity, data) {
-      let startAngle, endAngle
-      let xrad, yrad
-      let {x, y, z} = entity.center
-
-      xrad = yrad = entity.radius
-
+      var startAngle, endAngle
       if (entity.type === 'CIRCLE') {
         startAngle = entity.startAngle || 0
         endAngle = startAngle + 2 * Math.PI
       } else {
         startAngle = entity.startAngle
         endAngle = entity.endAngle
-
-        const sign = Math.sign(entity.extrusionDirectionZ ?? 1)
-        x *= sign
-        xrad *= sign
       }
 
-      const curve = new THREE.EllipseCurve(
-        0, 0,
-        xrad, yrad,
-        startAngle,
-        endAngle)
+      var curve = new THREE.ArcCurve(0, 0, entity.radius, startAngle, endAngle)
 
-      const points = curve.getPoints(32)
-      const geometry = new THREE.BufferGeometry().setFromPoints(points)
+      var points = curve.getPoints(32)
+      var geometry = new THREE.BufferGeometry().setFromPoints(points)
 
-      // const material = new THREE.LineBasicMaterial({ color: getColor(entity, data) })
-      const material = cachedLineBasicMaterial(getColor(entity, data))
+      var material = new THREE.LineBasicMaterial({ color: getColor(entity, data) })
 
-      const arc = new THREE.Line(geometry, material)
-      arc.name = 'arc'
-      arc.position.set(x, y, z)
+      var arc = new THREE.Line(geometry, material)
+      arc.position.x = entity.center.x
+      arc.position.y = entity.center.y
+      arc.position.z = entity.center.z
 
       return arc
     }
 
     function addTriangleFacingCamera(verts, p0, p1, p2) {
       // Calculate which direction the points are facing (clockwise or counter-clockwise)
-      const vector1 = new Vector3()
-      const vector2 = new Vector3()
+      var vector1 = new Vector3()
+      var vector2 = new Vector3()
       vector1.subVectors(p1, p0)
       vector2.subVectors(p2, p0)
       vector1.cross(vector2)
 
-      const v0 = new Vector3(p0.x, p0.y, p0.z)
-      const v1 = new Vector3(p1.x, p1.y, p1.z)
-      const v2 = new Vector3(p2.x, p2.y, p2.z)
+      var v0 = new Vector3(p0.x, p0.y, p0.z)
+      var v1 = new Vector3(p1.x, p1.y, p1.z)
+      var v2 = new Vector3(p2.x, p2.y, p2.z)
 
       // If z < 0 then we must draw these in reverse order
       if (vector1.z < 0) {
@@ -643,47 +535,44 @@ class DXFLoader extends THREE.Loader {
     }
 
     function drawSolid(entity, data) {
-      let material,
+      var material,
         verts,
         geometry = new THREE.BufferGeometry()
 
-      const points = entity.points
+      var points = entity.points
       // verts = geometry.vertices;
       verts = []
       addTriangleFacingCamera(verts, points[0], points[1], points[2])
       addTriangleFacingCamera(verts, points[1], points[2], points[3])
 
-      // material = new THREE.MeshBasicMaterial({ color: getColor(entity, data) })
-      material = cachedMeshBasicMaterial(getColor(entity, data))
+      material = new THREE.MeshBasicMaterial({ color: getColor(entity, data) })
       geometry.setFromPoints(verts)
 
-      const solid = new THREE.Mesh(geometry, material)
-      solid.name = 'solid'
-      return solid
+      return new THREE.Mesh(geometry, material)
     }
 
     function drawText(entity, data) {
-      let geometry, material, text
+      var geometry, material, text
 
       if (!font)
         return console.warn(
           'Text is not supported without a Three.js font loaded with THREE.FontLoader! Load a font of your choice and pass this into the constructor. See the sample for this repository or Three.js examples at http://threejs.org/examples/?q=text#webgl_geometry_text for more details.'
         )
 
-      const shapes = font.generateShapes(entity.text, entity.textHeight || 12)
-
-      // geometry = new TextGeometry(entity.text, {font: font, height: 0, size: entity.textHeight || 12})
-      geometry = new THREE.ShapeGeometry(shapes)
+      geometry = new TextGeometry(entity.text, {
+        font: font,
+        height: 0,
+        size: entity.textHeight || 12,
+      })
 
       if (entity.rotation) {
-        const zRotation = (entity.rotation * Math.PI) / 180
+        var zRotation = (entity.rotation * Math.PI) / 180
         geometry.rotateZ(zRotation)
       }
 
-      material = cachedTextMaterial(getColor(entity, data))
+      material = new THREE.MeshBasicMaterial({ color: getColor(entity, data) })
 
       text = new THREE.Mesh(geometry, material)
-      text.name = `text-${entity.text}`
       text.position.x = entity.startPoint.x
       text.position.y = entity.startPoint.y
       text.position.z = entity.startPoint.z
@@ -692,7 +581,7 @@ class DXFLoader extends THREE.Loader {
     }
 
     function drawPoint(entity, data) {
-      let geometry, material, point
+      var geometry, material, point
 
       geometry = new THREE.BufferGeometry()
 
@@ -701,43 +590,39 @@ class DXFLoader extends THREE.Loader {
         new Float32BufferAttribute([entity.position.x, entity.position.y, entity.position.z], 3)
       )
 
-      const color = getColor(entity, data)
+      var color = getColor(entity, data)
 
-      // material = new THREE.PointsMaterial({ size: 0.1, color: new Color(color) })
-      material = cachedPointsMaterial(new Color(color), 0.1)
+      material = new THREE.PointsMaterial({ size: 0.1, color: new Color(color) })
       point = new THREE.Points(geometry, material)
-      point.name = 'point'
       return point
     }
 
     function drawDimension(entity, data) {
-      const block = data.blocks[entity.block]
+      var block = data.blocks[entity.block]
 
       if (!block || !block.entities) return null
 
-      const group = new THREE.Object3D()
+      var group = new THREE.Object3D()
       // if(entity.anchorPoint) {
       //     group.position.x = entity.anchorPoint.x;
       //     group.position.y = entity.anchorPoint.y;
       //     group.position.z = entity.anchorPoint.z;
       // }
 
-      for (let i = 0; i < block.entities.length; i++) {
-        const childEntity = drawEntity(block.entities[i], data, group)
+      for (var i = 0; i < block.entities.length; i++) {
+        var childEntity = drawEntity(block.entities[i], data, group)
         if (childEntity) group.add(childEntity)
       }
-
-      mergeEntities(group)
 
       return group
     }
 
     function drawBlock(entity, data) {
-      const block = data.blocks[entity.name]
+      var block = data.blocks[entity.name]
 
       if (!block.entities) return null
 
-      const group = new THREE.Object3D()
+      var group = new THREE.Object3D()
 
       if (entity.xScale) group.scale.x = entity.xScale
       if (entity.yScale) group.scale.y = entity.yScale
@@ -752,30 +637,16 @@ class DXFLoader extends THREE.Loader {
         group.position.z = entity.position.z
       }
 
-      for (let i = 0; i < block.entities.length; i++) {
-        const childEntity = drawEntity(block.entities[i], data, group)
+      for (var i = 0; i < block.entities.length; i++) {
+        var childEntity = drawEntity(block.entities[i], data, group)
         if (childEntity) group.add(childEntity)
       }
-
-      group.name = entity.name
-      group.userData[USERDATA_ENTITY_TYPE] = 'BLOCK'
-
-      if (entity.name && entity.extendedData?.applicationName === 'REVIT') {
-        if (entity.extendedData.customStrings?.length) {
-          const [revitId] = entity.extendedData.customStrings
-          if (revitId) {
-            group.userData[USERDATA_REVIT_ID] = revitId
-          }
-        }
-      }
-
-      mergeEntities(group)
 
       return group
     }
 
     function getColor(entity, data) {
-      let color = 0x000000 //default
+      var color = 0x000000 //default
       if (entity.color) color = entity.color
       else if (data.tables && data.tables.layer && data.tables.layer.layers[entity.layer])
         color = data.tables.layer.layers[entity.layer].color
@@ -787,9 +658,9 @@ class DXFLoader extends THREE.Loader {
     }
 
     function createLineTypeShaders(data) {
-      let ltype, type
+      var ltype, type
       if (!data.tables || !data.tables.lineType) return
-      const ltypes = data.tables.lineType.lineTypes
+      var ltypes = data.tables.lineType.lineTypes
 
       for (type in ltypes) {
         ltype = ltypes[type]
@@ -799,7 +670,7 @@ class DXFLoader extends THREE.Loader {
     }
 
     function createDashedLineShader(pattern) {
-      let i,
+      var i,
         dashedLineShader = {},
         totalLength = 0.0
 
@@ -928,142 +799,17 @@ class DXFLoader extends THREE.Loader {
       return null
     }
 
-    /**
-     * @param color {number}
-     * @param linewidth {number}
-     * @return {THREE.LineBasicMaterial}
-     */
-    function cachedLineBasicMaterial(color, linewidth = 1) {
-      const materialKey = `LineBasicMaterial&color=${color}&linewidth=${linewidth}`
-      return _materialCache.computeIfAbsent(materialKey, k => {
-        return new THREE.LineBasicMaterial({
-          color: color,
-          linewidth: linewidth,
-          depthWrite: DEPTH_WRITE,
-        })
-      })
-    }
-
-    /**
-     * @param color {number}
-     * @param gapSize {number}
-     * @param dashSize {number}
-     * @return {THREE.LineDashedMaterial}
-     */
-    function cachedLineDashedMaterial(color, gapSize, dashSize) {
-      const materialKey = `LineDashedMaterial&color=${color}&gapSize=${gapSize}&dashSize=${dashSize}`
-      return _materialCache.computeIfAbsent(materialKey, k => {
-        return new THREE.LineDashedMaterial({
-          color: color,
-          gapSize: gapSize,
-          dashSize: dashSize,
-          depthWrite: DEPTH_WRITE,
-        });
-      })
-    }
-
-    /**
-     * @param color {number}
-     */
-    function cachedMeshBasicMaterial(color) {
-      const materialKey = `MeshBasicMaterial&color=${color}`
-      return _materialCache.computeIfAbsent(materialKey, k => {
-        return new THREE.MeshBasicMaterial({
-          color: color,
-          depthWrite: DEPTH_WRITE,
-        })
-      })
-    }
-
-    /**
-     * @param color {number}
-     */
-    function cachedTextMaterial(color) {
-      const materialKey = `TextMaterial&color=${color}`
-      return _materialCache.computeIfAbsent(materialKey, k => {
-        return new THREE.MeshBasicMaterial({
-          color: color,
-          depthWrite: DEPTH_WRITE,
-        })
-      })
-    }
-
-    /**
-     * @param color {number}
-     * @param size {number}
-     */
-    function cachedPointsMaterial(color, size) {
-      const materialKey = `PointsMaterial&color=${color}&size=${size}`
-      return _materialCache.computeIfAbsent(materialKey, k => {
-        return new THREE.PointsMaterial({
-          size: size,
-          color: new Color(color),
-          depthWrite: DEPTH_WRITE,
-        });
-      })
-    }
-
-    function mergeEntities(obj, debug = false) {
-      if ((obj?.children?.length ?? 0) < 2) {
-        return
-      }
-      obj.updateMatrixWorld()
-
-      const cache = new Cache()
-      for (let mesh of obj.children) {
-        if (mesh.type === 'Line' && mesh.geometry && mesh.material) {
-          cache.computeIfAbsent(mesh.material, () => []).push(mesh)
-
-          // if (!cache.has(mesh.material)) {
-          //     cache.set(mesh.material, [])
-          // }
-          // cache.get(mesh.material).push(mesh);
-        }
-      }
-
-
-      for (let [material, lines] of cache.entries()) {
-        if (lines.length <= 1) {
-          continue
-        }
-
-        const points = []
-        for (let line of lines) {
-          const geometry = line.geometry
-          const position = geometry.attributes.position
-          for (let i = 0, limit = position.count - 1; i < limit; i++) {
-            const p1 = new THREE.Vector3(
-              position.getX(i),
-              position.getY(i),
-              position.getZ(i)
-            ).applyMatrix4(line.matrix)
-
-            const p2 = new THREE.Vector3(
-              position.getX(i + 1),
-              position.getY(i + 1),
-              position.getZ(i + 1)
-            ).applyMatrix4(line.matrix)
-
-            points.push(p1, p2)
-          }
-          obj.remove(line)
-        }
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const lineSegments = new THREE.LineSegments(geometry, material)
-        obj.add(lineSegments)
-      }
-    }
+    // Load entities now!
 
     createLineTypeShaders(data)
 
-    const entities = []
-    const layers = {}
+    var entities = []
+    var layers = {}
     data.faceVertices = {}
     data.faceColors = {}
 
     // Create scene from dxf object (data)
-    let i, entity, obj
-    let start = performance.now()
+    var i, entity, obj
 
     for (i = 0; i < data.entities.length; i++) {
       entity = data.entities[i]
@@ -1076,7 +822,6 @@ class DXFLoader extends THREE.Loader {
           if (!layerGroup) {
             layerGroup = new THREE.Group()
             layerGroup.name = entity.layer
-            layerGroup.userData[USERDATA_ENTITY_TYPE] = 'Layer'
             layers[entity.layer] = layerGroup
           }
           layerGroup.add(obj)
@@ -1118,30 +863,6 @@ class DXFLoader extends THREE.Loader {
     delete data.faceVertices
     delete data.faceColors
 
-    console.log('加载dxf实例完成', performance.now() - start)
-    start = performance.now()
-
-    if (enableLayer) {
-      for (let mesh of Object.values(layers)) {
-        mergeEntities(mesh)
-      }
-    } else {
-      let layer = new THREE.Group()
-      for (let e of entities) {
-        layer.add(e)
-      }
-
-      mergeEntities(layer)
-
-      entities.length = 0
-      for (let child of [...layer.children]) {
-        layer.remove(child)
-        entities.push(child)
-      }
-    }
-
-    console.log('合并dxf实例完成', performance.now() - start)
-
     return {
       entities: enableLayer ? Object.values(layers) : entities,
       dxf: data,
@@ -1150,17 +871,3 @@ class DXFLoader extends THREE.Loader {
 }
 
 export { DXFLoader }
-
-class Cache extends Map {
-  computeIfAbsent(key, mappingFunction) {
-    let v;
-    if ((v = this.get(key)) === undefined) {
-      let newValue;
-      if ((newValue = mappingFunction?.(key)) !== undefined) {
-        this.set(key, newValue)
-        return newValue
-      }
-    }
-    return v
-  }
-}
