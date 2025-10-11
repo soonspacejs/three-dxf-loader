@@ -1,6 +1,6 @@
 {
-  "name": "three-dxf-loader",
-  "version": "3.6.160",
+  "name": "@soonspacejs/three-dxf-loader",
+  "version": "3.6.161",
   "description": "Cross platform DXF loader for three.js. Out of the box usable with react-three-fiber.",
   "main": "dist/three-dxf-loader.js",
   "module": "src/Loader.js",
@@ -45,7 +45,7 @@
     "webpack-merge": "^5.8.0"
   },
   "peerDependencies": {
-    "three": "0.160.0"
+    "three": ">=0.160.0"
   },
   "keywords": [
     "dxf",
@@ -64,6 +64,6 @@
     "@dxfom/mtext": "^0.3.2",
     "js-base64": "^3.7.3",
     "loglevel": "^1.8.1",
-    "troika-three-text": "^0.48.0"
+    "troika-three-text": "^0.52.4"
   }
 }
